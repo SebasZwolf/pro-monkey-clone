@@ -197,13 +197,13 @@ const accuracy = ref(0);
 </script>
 
 <template>
-  <main style="max-width: 100ch; margin-inline: auto;">
+  <main style="max-width: 100ch; margin-inline: auto; margin-bottom: 2rem;">
     <header>
       <hgroup>
         <h1 style="color: gold;">
           MonkeyType Clone!
         </h1>
-        <p>Esta es una copia del juego MonkeyType, no es el original y su proposito es el aprender de lógica de programación</p>
+        <p>Esta es una copia del juego MonkeyType. Si os gusta, no duden en visitar el <a href="https://monkeytype.com" style="color: gold;">juego original</a>.</p>
       </hgroup>
       <p :style="{ visibility : interaction ? 'hidden' : 'visible' }"><i style="opacity: .75;">para iniciar el juego, es necesario un click en la página</i></p>
     </header>
@@ -230,6 +230,9 @@ const accuracy = ref(0);
       <button style="display: block; margin-block: 1rem; background-color: #333; padding : .5rem 1rem" @click="gameStart">Jugar Otra vez</button>
     </aside>
   </main>
+  <footer style="position: fixed; bottom: 0; padding : .5rem; text-align: center; width: 100%; background-color: #111;">
+    <small>Proyecto basado en las guia de Midudev.</small>
+  </footer>
 </template>
 
 <style >
