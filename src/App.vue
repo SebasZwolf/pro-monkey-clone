@@ -1,25 +1,26 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref, unref } from 'vue';
 
 const RUN_TIME = 30;
 
 const time = ref(RUN_TIME);
 
-const raw_words = ("Reprehenderit deserunt nisi eiusmod voluptate ea do aute irure nostrud laborum amet sint. Nostrud commodo amet non nostrud tempor minim nisi aliqua sint occaecat. Exercitation id ut aliqua ex elit deserunt do aute aliquip aliqua. Laborum laborum Lorem eu exercitation laboris reprehenderit sunt laboris id qui. Quis mollit commodo duis labore nostrud dolor dolore exercitation dolore consectetur fugiat do. Exercitation sit nostrud id aliquip proident qui cupidatat ut laborum esse excepteur sint exercitation qui.".toLocaleLowerCase().split(" "))
+import text from './assets/parapraph.txt?raw';
+const raw_words = text.toLocaleLowerCase().split(" ");
 
-enum LetterStatus {
+const enum LetterStatus {
   n = -1,
-  c,
-  w,
+  c = 0,
+  w = 1,
 }
 type tLetter = {
-  status : LetterStatus,
-  l : string,
-  active : boolean,
+  status: LetterStatus,
+  l: string,
+  active: boolean,
 }
-type tWord = { 
-  active : boolean;
-  letters : tLetter[];
+type tWord = {
+  active: boolean;
+  letters: tLetter[];
 }
 
 const words = reactive<tWord[]>([]);
@@ -27,87 +28,116 @@ const words = reactive<tWord[]>([]);
 let wordTotal = 0;
 let wordIndex = 0;
 
-function keyDown(e : KeyboardEvent) {
-
+function keyDown(e: KeyboardEvent) {
   const currentWord = words[wordIndex];
-  if (!currentWord) return;
-
-  const value = (e.target as HTMLInputElement).value.trim().split('');
-
-  if (e.key === ' ' || e.key.startsWith('Arrow')) 
-    e.preventDefault();
-
-  if (e.key === 'Backspace' && value.length === 0 && wordIndex > 0 && words[wordIndex - 1].letters.some(l => l.status != LetterStatus.c)) {
-    e.preventDefault();
-
-    keyUp(e);
-
-    currentWord.active = false;
-    currentWord.letters[0].active = false;
-    // currentWord.letters.forEach(l => l.active = false);
-    
-    const nextWord = words[--wordIndex];
-
-    const newValue = nextWord.letters.map(l => l.status === LetterStatus.c ? l.l : l.status === LetterStatus.w ? '*' : '').join('');
-    
-    nextWord.active = true;
-    if (newValue.length < nextWord.letters.length) 
-      nextWord.letters[newValue.length].active = true;
-
-    $input.value.value = newValue;
-    $input.value.maxLength = nextWord.letters.length;
-  }  
-}
-
-function achieve() {
-  if (wordTotal - wordIndex > 10) return 
-  
-  const l = raw_words.length;
-  words.push(...Array.from(Array(12), () => genWord(raw_words[Math.ceil(Math.random() * l)])));
-
-  wordTotal+= 12;
-}
-
-function keyUp(e : KeyboardEvent) {
-  const currentWord = words[wordIndex];
-  if (!currentWord) return;
-
-  const value = (e.target as HTMLInputElement).value.trim().split('');
-  const l = value.length;
-
-  if (e.key === ' ') {
-    if (wordTotal - 1 === wordIndex || l === 0 || currentWord.letters.every(l => l.status === LetterStatus.n))
-      return;
-
-    currentWord.active = false;
-    currentWord.letters.forEach(l => l.active = false);
-    // if (l < currentWord.w.length) currentWord.letters[l].active = false;
-
-    achieve();
-
-    $input.value.value = '';
-    
-    setWord(words[++wordIndex]);
+  if (!currentWord)
     return;
-  }
+
+  const _input = $input.value;
+  // const value = _input.value.trim().split('');
+  const value = _input.value.trim();
+
+  switch (e.key) {
+    case 'Backspace': {
+      if (value.length === 0) {
+        if (!words[wordIndex - 1]?.letters.some(l => l.status !== LetterStatus.c))
+          break;
+        
+        e.preventDefault();
+
+        currentWord.active = false;
+        currentWord.letters[0].active = false;
+        
+        const nextWord = words[--wordIndex];
+        
+        const vs = {
+          [LetterStatus.w] : '*',
+          [LetterStatus.n] : '',
+          [LetterStatus.c] : null,
+        };
+
+        const newValue = nextWord.letters.map(l => vs[l.status] ?? l.l).join('');
+        nextWord.active = true;
+        
+        if (newValue.length < nextWord.letters.length)
+          nextWord.letters[newValue.length].active = true;
+        
+        _input.maxLength = nextWord.letters.length;
+        _input.value = newValue;
+        break;
+      }
+
+      if (e.ctrlKey) {
+        for (const letter of currentWord.letters) {
+          letter.active = false;
+          letter.status = LetterStatus.n;
+        }
+        
+        currentWord.letters[0].active = true;
+        break;
+      }
+
+      
+      if (value.length !== currentWord.letters.length) 
+        currentWord.letters[value.length].active = false;
+      
+      const letter = currentWord.letters[value.length - 1];
+      
+      letter.status = LetterStatus.n;
+      letter.active = true;      
+    } 
+    break;
+    case ' ':{
+      e.preventDefault();
+
+      if (wordTotal - 1 === wordIndex || value.length === 0 || currentWord.letters.every(l => l.status === LetterStatus.n))
+        break;
+
+      currentWord.active = false;
+      currentWord.letters.forEach(l => l.active = false);
+
+      achieve();
+
+      $input.value.value = '';
+
+      setWord(words[++wordIndex]);
+    }
+    break;
+    default:
+
+      if (e.key.length !== 1) {
+        e.preventDefault();
+        break;
+      }
+
+      const vsize = value.length + 1
+      const nvalue = value.concat(e.key);
   
-  for (let i = currentWord.letters.length - 1; i >= 0; i--) {
-    const letter = currentWord.letters[i];
-
-    letter.active = false;
-    letter.status = i >= l ? LetterStatus.n : letter.l === value[i] ? LetterStatus.c : LetterStatus.w;
+      for (const [i, letter] of currentWord.letters.entries()) {
+        letter.active = false;
+        letter.status = i >= vsize ? LetterStatus.n : letter.l === nvalue[i] ? LetterStatus.c : LetterStatus.w;
+      }
+        
+      if (vsize < currentWord.letters.length)
+        currentWord.letters[vsize].active = true;
+    break;
   }
-
-  if (l < currentWord.letters.length) 
-    currentWord.letters[l].active = true;
 }
 
-function setWord(word : tWord) {
+function setWord(word: tWord) {
   word.active = true;
   word.letters[0].active = true;
   $input.value.maxLength = word.letters.length;
 }
 
+function achieve() {
+  if (wordTotal - wordIndex > 10) return
+
+  const l = raw_words.length;
+  words.push(...Array.from(Array(12), () => genWord(raw_words[Math.ceil(Math.random() * l)])));
+
+  wordTotal += 12;
+}
 
 
 function gameEnd() {
@@ -120,8 +150,8 @@ function gameEnd() {
   const [correct_words, correct_letters, written_letters] = words.reduce((p, w) => {
     let c = 0, t = 0;
 
-    for ( const l of w.letters)
-      if(l.status === LetterStatus.n)
+    for (const l of w.letters)
+      if (l.status === LetterStatus.n)
         break;
       else {
         t += 1;
@@ -139,13 +169,13 @@ function gameEnd() {
   accuracy.value = written_letters ? correct_letters / written_letters : 0;
 }
 
-function genWord(w : string) {
+function genWord(w: string) {
   return {
-    active : false,
-    letters : Array.from(w, e => ({
-      status : LetterStatus.n,
-      l : e,
-      active : false,
+    active: false,
+    letters: Array.from(w, e => ({
+      status: LetterStatus.n,
+      l: e,
+      active: false,
     }))
   };
 }
@@ -155,7 +185,9 @@ function gameStart() {
 
   document.onkeydown = () => $input.value.focus();
   $input.value.onkeydown = keyDown;
-  $input.value.onkeyup = keyUp;
+  
+  // $input.value.focus();
+  setTimeout(() => $input.value.focus());
 
   words.length = 0;
   words.push(...raw_words.slice(0, 24).sort(() => Math.random() - .5).map(genWord));
@@ -164,7 +196,7 @@ function gameStart() {
   wordTotal = words.length;
 
   time.value = RUN_TIME;
-  let s = setInterval(() =>{
+  let s = setInterval(() => {
     time.value -= 1;
     if (time.value <= 0) {
       gameEnd();
@@ -179,11 +211,15 @@ function gameStart() {
 }
 
 onMounted(() => {
-  document.onclick = () => {
-    document.onclick = null;
-    gameStart();
+  document.addEventListener('click', () => {
     interaction.value = true;
-  }
+    gameStart();
+  }, { once : true });
+});
+
+onUnmounted(() => {
+  $input.value.onkeydown = null;
+  $input.value.onkeyup = null;
 });
 
 const interaction = ref(false);
@@ -203,22 +239,26 @@ const accuracy = ref(0);
         <h1 style="color: gold;">
           MonkeyType Clone!
         </h1>
-        <p>Esta es una copia del juego MonkeyType. Si os gusta, no duden en visitar el <a href="https://monkeytype.com" style="color: gold;">juego original</a>.</p>
+        <p>Esta es una copia del juego MonkeyType. Si os gusta, no duden en visitar el <a href="https://monkeytype.com"
+            style="color: gold;">juego original</a>.</p>
       </hgroup>
-      <p :style="{ visibility : interaction ? 'hidden' : 'visible' }"><i style="opacity: .75;">para iniciar el juego, es necesario un click en la página</i></p>
+      <p :style="{ visibility: interaction ? 'hidden' : 'visible' }"><i style="opacity: .75;">para iniciar el juego, es
+        necesario un click en la página</i></p>
+      <!-- <pre>{{ words[wordIndex] }}</pre> -->
     </header>
     <section v-show="interaction">
       <p style="color: gold">
-        tiempo: <time  :date="new Date(`PT${time}S`)" :format="{ second : '2-digit' }">{{ time }}</time>
+        tiempo: <time :date="new Date(`PT${time}S`)" :format="{ second: '2-digit' }">{{ time }}</time>
       </p>
       <p class="board" ref="board">
         <TransitionGroup name="appear">
           <span v-for="w, i of words" :key="i" :class="[w.active && 'active']">
-            <span v-for="l, i of w.letters" :key="i" :data-status="l.status" v-text="l.l" :class="[l.active && 'active']"></span>
+            <span v-for="l, i of w.letters" :key="i" :data-status="l.status" v-text="l.l"
+              :class="[l.active && 'active']"></span>
           </span>
         </TransitionGroup>
       </p>
-      <input type="text" ref="$input" autofocus style="position: absolute; left: 0; top: -100vh;"/>
+      <input type="text" ref="$input" autofocus style="position: absolute; left: 0; top: -0vh;" />
     </section>
 
     <aside v-show="gameover">
@@ -227,7 +267,8 @@ const accuracy = ref(0);
       <h2>precisión</h2>
       <output :value="`${(accuracy * 100).toFixed(2)}%`"></output>
 
-      <button style="display: block; margin-block: 1rem; background-color: #333; padding : .5rem 1rem" @click="gameStart">Jugar Otra vez</button>
+      <button style="display: block; margin-block: 1rem; background-color: #333; padding : .5rem 1rem"
+        @click="gameStart">Jugar Otra vez</button>
     </aside>
   </main>
   <footer style="position: fixed; bottom: 0; padding : .5rem; text-align: center; width: 100%; background-color: #111;">
@@ -235,7 +276,7 @@ const accuracy = ref(0);
   </footer>
 </template>
 
-<style >
+<style>
 .appear-enter-active,
 .appear-leave-active {
   transition: opacity .3s ease-out, translate .3s ease-out;
@@ -245,41 +286,50 @@ const accuracy = ref(0);
 .appear-enter-from,
 .appear-leave-to {
   opacity: 0;
-  translate : 0 1ch;
+  translate: 0 1ch;
 }
 
 main {
-  padding : 1rem;
+  padding: 1rem;
 }
+
 .board {
   font-family: Menlo, monospace;
   display: flex;
   flex-wrap: wrap;
-  gap : .25ch 1ch;
+  gap: .25ch 1ch;
 }
 
-.board > span {
+.board>span {
   border-bottom: 2px solid transparent;
   letter-spacing: .25ch;
 }
-.board > span.active:not(:has(.active)) > span:last-child::before { 
+
+.board>span.active:not(:has(.active))>span:last-child::before {
   content: '|';
   position: absolute;
   translate: +.75ch 0;
-  color : gold;
+  color: gold;
   animation: 1s blink infinite linear;
 }
-.board > span:has(> span:not([data-status="0"])):has(~ span.active) {
-  border-color : red;
+
+.board>span:has(> span:not([data-status="0"])):has(~ span.active) {
+  border-color: red;
 }
 
-.board > span > span[data-status="0"] { color: lime; }
-.board > span > span[data-status="1"] { color: red; }
-.board > span > span.active::before { 
+.board>span>span[data-status="0"] {
+  color: lime;
+}
+
+.board>span>span[data-status="1"] {
+  color: red;
+}
+
+.board>span>span.active::before {
   content: '|';
   position: absolute;
   translate: -.75ch 0;
-  color : gold;
+  color: gold;
 
   animation: 1s blink infinite linear;
 }
@@ -287,10 +337,13 @@ main {
 
 
 @keyframes blink {
-  0%,35%{
+
+  0%,
+  35% {
     opacity: 1;
   }
-  75%{
+
+  75% {
     opacity: 0;
   }
 }
